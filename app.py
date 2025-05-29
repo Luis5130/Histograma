@@ -1,53 +1,75 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
-# Carregamento do CSV
 @st.cache_data
 def carregar_dados():
-    return pd.read_csv("Preços Herois.csv")  # Certifique-se de que o arquivo está no mesmo diretório
+    return pd.read_csv("Preços Herois.csv")
 
 df = carregar_dados()
 
 st.title("📊 Histograma Interativo de Preços")
 
-# --- Filtros ---
+# Filtros
 st.sidebar.header("Filtros")
-
-# Serviço
 servicos = st.sidebar.multiselect("Serviço", options=sorted(df["servico"].unique()), default=df["servico"].unique())
-
-# Estado
 estados = st.sidebar.multiselect("Estado", options=sorted(df["Estado"].unique()), default=df["Estado"].unique())
-
-# Cidade (baseada nos estados selecionados)
 cidades_disponiveis = df[df["Estado"].isin(estados)]["Cidade"].unique()
 cidades = st.sidebar.multiselect("Cidade", options=sorted(cidades_disponiveis), default=sorted(cidades_disponiveis))
 
-# Aplicar os filtros
 df_filtrado = df[
     (df["servico"].isin(servicos)) &
     (df["Estado"].isin(estados)) &
     (df["Cidade"].isin(cidades))
 ]
 
-# --- Histograma Interativo ---
+# Histograma com hover mais exato
 st.subheader("Distribuição de Preços (com filtros aplicados)")
+
+bin_size = 10  # Altere conforme o nível de detalhe desejado
 
 fig = px.histogram(
     df_filtrado,
     x="price",
     color="servico",
-    nbins=20,
+    nbins=int((df_filtrado["price"].max() - df_filtrado["price"].min()) / bin_size),
     barmode="stack",
-    title="Distribuição de Preços por Serviço",
-    labels={"price": "Preço"}
+    labels={"price": "Preço"},
+    text_auto=True
 )
 
-fig.update_layout(hovermode="x unified")
+# Mostrar percentual no hover
+total = len(df_filtrado)
+fig.update_traces(
+    hovertemplate=(
+        'Faixa de Preço: %{x}<br>'
+        'Serviço: %{customdata[0]}<br>'
+        'Contagem: %{y}<br>'
+        'Percentual: %{customdata[1]:.2f}%<extra></extra>'
+    ),
+    customdata=[
+        [row["servico"], (1 / total) * 100] for _, row in df_filtrado.iterrows()
+    ]
+)
+
+# Opcional: linha de média
+media = df_filtrado["price"].mean()
+fig.add_vline(
+    x=media,
+    line_dash="dot",
+    line_color="red",
+    annotation_text=f"Média: R${media:.2f}",
+    annotation_position="top left"
+)
+
+fig.update_layout(
+    hovermode="x unified",
+    xaxis_title="Preço",
+    yaxis_title="Quantidade",
+)
 
 st.plotly_chart(fig, use_container_width=True)
 
-# Exibir dados filtrados (opcional)
 with st.expander("🔍 Ver dados filtrados"):
     st.dataframe(df_filtrado.reset_index(drop=True))
