@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # Carregamento do CSV
 @st.cache_data
 def carregar_dados():
-    return pd.read_csv("meus_dados.csv")  # Certifique-se que está no mesmo diretório
+    return pd.read_csv("Preços Herois.csv")  # Certifique-se que está no mesmo diretório
 
 df = carregar_dados()
 
