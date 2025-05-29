@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
 
-# --- Carregamento do CSV ---
+# --- Carregar dados ---
 @st.cache_data
 def carregar_dados():
-    return pd.read_csv("Preços Herois.csv")  # Certifique-se de que o arquivo está no mesmo diretório
+    return pd.read_csv("Preços Herois.csv")
 
 df = carregar_dados()
 
@@ -15,87 +15,101 @@ st.title("📊 Histograma Interativo de Preços")
 # --- Filtros ---
 st.sidebar.header("Filtros")
 
-# SERVIÇO
-st.sidebar.subheader("Serviço")
+# Serviço
 todos_servicos = sorted(df["servico"].unique())
 selecionar_todos_servicos = st.sidebar.checkbox("Selecionar todos os serviços", value=True)
 if selecionar_todos_servicos:
-    servicos = st.sidebar.multiselect("Serviço", options=todos_servicos, default=todos_servicos)
+    servicos = st.sidebar.multiselect("Serviço", todos_servicos, default=todos_servicos)
 else:
-    servicos = st.sidebar.multiselect("Serviço", options=todos_servicos)
+    servicos = st.sidebar.multiselect("Serviço", todos_servicos)
 
-# ESTADO
-st.sidebar.subheader("Estado")
+# Estado
 todos_estados = sorted(df["Estado"].unique())
 selecionar_todos_estados = st.sidebar.checkbox("Selecionar todos os estados", value=True)
 if selecionar_todos_estados:
-    estados = st.sidebar.multiselect("Estado", options=todos_estados, default=todos_estados)
+    estados = st.sidebar.multiselect("Estado", todos_estados, default=todos_estados)
 else:
-    estados = st.sidebar.multiselect("Estado", options=todos_estados)
+    estados = st.sidebar.multiselect("Estado", todos_estados)
 
-# CIDADE
-st.sidebar.subheader("Cidade")
+# Cidade
 cidades_disponiveis = sorted(df[df["Estado"].isin(estados)]["Cidade"].unique())
 selecionar_todas_cidades = st.sidebar.checkbox("Selecionar todas as cidades", value=True)
 if selecionar_todas_cidades:
-    cidades = st.sidebar.multiselect("Cidade", options=cidades_disponiveis, default=cidades_disponiveis)
+    cidades = st.sidebar.multiselect("Cidade", cidades_disponiveis, default=cidades_disponiveis)
 else:
-    cidades = st.sidebar.multiselect("Cidade", options=cidades_disponiveis)
+    cidades = st.sidebar.multiselect("Cidade", cidades_disponiveis)
 
-# Aplicar filtros
+# --- Filtrar dados ---
 df_filtrado = df[
     (df["servico"].isin(servicos)) &
     (df["Estado"].isin(estados)) &
     (df["Cidade"].isin(cidades))
 ]
 
-# --- Histograma com Plotly ---
+# --- Plot ---
 st.subheader("Distribuição de Preços (com filtros aplicados)")
 
-if not df_filtrado.empty:
-    total = len(df_filtrado)
+if df_filtrado.empty:
+    st.warning("Nenhum dado encontrado com os filtros selecionados.")
+else:
+    bin_size = 20
+    max_price = df_filtrado["price"].max()
+    bins = np.arange(0, max_price + bin_size, bin_size)
 
-    fig = px.histogram(
-        df_filtrado,
-        x="price",
-        color="servico",
-        nbins=20,
-        barmode="stack",
-        custom_data=["servico"],
-    )
+    # Calcular histograma
+    hist_data = []
+    for serv in df_filtrado["servico"].unique():
+        df_serv = df_filtrado[df_filtrado["servico"] == serv]
+        counts, _ = np.histogram(df_serv["price"], bins=bins)
+        percent = (counts / counts.sum()) * 100
+        labels = [f"R${bins[i]:.0f} - R${bins[i+1]-1:.0f}" for i in range(len(counts))]
 
-    # Atualizar hover com detalhes
-    fig.update_traces(
-        hovertemplate="<br>".join([
-            "Faixa de Preço: %{x} – %{x+bin}",  # bin será substituído
-            "Serviço: %{customdata[0]}",
-            "Qtd: %{y}",
-            "Percentual: %{y:.0f} / " + str(total) + " = %{percent:.1f}%",
-        ]),
-    )
+        hist_data.append(go.Bar(
+            x=labels,
+            y=counts,
+            name=serv,
+            hovertemplate="<br>".join([
+                "Serviço: " + serv,
+                "Faixa de preço: %{x}",
+                "Quantidade: %{y}",
+                "Percentual: %{customdata:.1f}%",
+            ]),
+            customdata=percent
+        ))
 
-    # Adicionar linha vertical com a média
+    # Média
     media = df_filtrado["price"].mean()
-    fig.add_vline(
-        x=media,
-        line_dash="dash",
-        line_color="black",
-        annotation_text=f"Média: R${media:.2f}",
-        annotation_position="top right",
+
+    layout = go.Layout(
+        title="Distribuição de Preços por Serviço",
+        xaxis_title="Faixa de Preço (R$)",
+        yaxis_title="Quantidade",
+        barmode="stack",
+        bargap=0.05,
+        shapes=[
+            dict(
+                type="line",
+                x0=f"R${int(media // bin_size) * bin_size} - R${int(media // bin_size) * bin_size + bin_size - 1}",
+                x1=f"R${int(media // bin_size) * bin_size} - R${int(media // bin_size) * bin_size + bin_size - 1}",
+                y0=0,
+                y1=max(counts),
+                line=dict(color="black", dash="dash"),
+            )
+        ],
+        annotations=[
+            dict(
+                x=f"R${int(media // bin_size) * bin_size} - R${int(media // bin_size) * bin_size + bin_size - 1}",
+                y=max(counts),
+                text=f"Média: R${media:.2f}",
+                showarrow=True,
+                arrowhead=1
+            )
+        ]
     )
 
-    # Adiciona eixo e layout limpo
-    fig.update_layout(
-        xaxis_title="Preço",
-        yaxis_title="Quantidade",
-        bargap=0.05,
-        title="Distribuição de Preços por Serviço",
-    )
+    fig = go.Figure(data=hist_data, layout=layout)
 
     st.plotly_chart(fig, use_container_width=True)
-else:
-    st.warning("Nenhum dado encontrado com os filtros selecionados.")
 
-# --- Dados filtrados ---
-with st.expander("🔍 Ver dados filtrados"):
-    st.dataframe(df_filtrado.reset_index(drop=True))
+    with st.expander("🔍 Ver dados filtrados"):
+        st.dataframe(df_filtrado.reset_index(drop=True))
