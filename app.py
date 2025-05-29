@@ -5,7 +5,7 @@ import plotly.express as px
 # Carregamento do CSV
 @st.cache_data
 def carregar_dados():
-    return pd.read_csv("Preços Herois.csv")  # Certifique-se de que está no mesmo diretório
+    return pd.read_csv("Preços Herois.csv")  # Certifique-se de que o arquivo está no mesmo diretório
 
 df = carregar_dados()
 
@@ -49,4 +49,5 @@ fig.update_layout(hovermode="x unified")
 st.plotly_chart(fig, use_container_width=True)
 
 # Exibir dados filtrados (opcional)
-with st.expander
+with st.expander("🔍 Ver dados filtrados"):
+    st.dataframe(df_filtrado.reset_index(drop=True))
