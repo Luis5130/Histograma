@@ -1,15 +1,27 @@
 import streamlit as st
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-st.title("Análise com Seaborn")
+# Título
+st.title("Visualização dos Meus Dados")
 
-df = sns.load_dataset("penguins")
+# Carregar o CSV
+@st.cache_data
+def carregar_dados():
+    return pd.read_csv("meus_dados.csv")
 
-st.write("### Visualização dos dados")
+df = carregar_dados()
+
+# Mostrar os dados
+st.subheader("Prévia dos dados")
 st.write(df.head())
 
-st.write("### Gráfico de dispersão")
+# Selecionar a coluna para o histograma
+coluna = st.selectbox("Escolha a coluna para visualizar o histograma:", df.columns)
+
+# Plotar o histograma
 fig, ax = plt.subplots()
-sns.scatterplot(data=df, x="bill_length_mm", y="bill_depth_mm", hue="species", ax=ax)
+sns.histplot(df[coluna].dropna(), kde=True, ax=ax)
+ax.set_title(f"Histograma da coluna {coluna}")
 st.pyplot(fig)
