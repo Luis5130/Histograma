@@ -1,43 +1,65 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import plotly.express as px
 
-# Carregamento do CSV
-@st.cache_data
-def carregar_dados():
-    return pd.read_csv("Preços Herois.csv")  # Certifique-se que está no mesmo diretório
+st.title("Análise de Preços por Serviço, Estado e Cidade")
 
-df = carregar_dados()
+# Upload do arquivo CSV
+dados = st.file_uploader("Envie seu arquivo CSV com colunas: servico, price, Estado, Cidade", type="csv")
 
-st.title("📊 Histograma Interativo de Preços")
+if dados is not None:
+    df = pd.read_csv(dados)
 
-# --- Filtros ---
-st.sidebar.header("Filtros")
+    # Filtros
+    cidades = df["Cidade"].unique().tolist()
+    cidade_selecionada = st.selectbox("Selecione uma cidade (opcional):", ["Todas"] + cidades)
 
-# Serviço
-servicos = st.sidebar.multiselect("Serviço", options=sorted(df["servico"].unique()), default=df["servico"].unique())
+    if cidade_selecionada != "Todas":
+        df = df[df["Cidade"] == cidade_selecionada]
 
-# Estado
-estados = st.sidebar.multiselect("Estado", options=sorted(df["Estado"].unique()), default=df["Estado"].unique())
+    # Histograma por Serviço
+    st.subheader("Histograma de Preços por Serviço")
+    fig_servico = px.histogram(df, x="price", color="servico", barmode="overlay", nbins=30,
+                                hover_data=df.columns, title="Distribuição de Preços por Serviço")
+    st.plotly_chart(fig_servico)
 
-# Cidade (baseada nos estados selecionados)
-cidades_disponiveis = df[df["Estado"].isin(estados)]["Cidade"].unique()
-cidades = st.sidebar.multiselect("Cidade", options=sorted(cidades_disponiveis), default=sorted(cidades_disponiveis))
+    # Histograma por Estado
+    st.subheader("Histograma de Preços por Estado")
+    fig_estado = px.histogram(df, x="price", color="Estado", barmode="overlay", nbins=30,
+                               hover_data=df.columns, title="Distribuição de Preços por Estado")
+    st.plotly_chart(fig_estado)
 
-# Aplicar os filtros
-df_filtrado = df[
-    (df["servico"].isin(servicos)) &
-    (df["Estado"].isin(estados)) &
-    (df["Cidade"].isin(cidades))
-]
+    # Histograma por Cidade
+    st.subheader("Histograma de Preços por Cidade")
+    fig_cidade = px.histogram(df, x="price", color="Cidade", barmode="overlay", nbins=30,
+                               hover_data=df.columns, title="Distribuição de Preços por Cidade")
+    st.plotly_chart(fig_cidade)
 
-# --- Histograma Final ---
-st.subheader("Distribuição de Preços (com filtros aplicados)")
-fig, ax = plt.subplots()
-sns.histplot(data=df_filtrado, x="price", hue="servico", multiple="stack", bins=20, ax=ax)
-st.pyplot(fig)
+    # Boxplot por Serviço
+    st.subheader("Boxplot de Preços por Serviço")
+    fig_box_servico = px.box(df, x="servico", y="price", points="all",
+                              hover_data=df.columns, title="Boxplot de Preços por Serviço")
+    st.plotly_chart(fig_box_servico)
 
-# Exibir dados filtrados (opcional)
-with st.expander("🔍 Ver dados filtrados"):
-    st.dataframe(df_filtrado.reset_index(drop=True))
+    # Tabelas de médias por grupo
+    st.subheader("Preço Médio por Grupo")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("### Por Serviço")
+        media_servico = df.groupby("servico")["price"].mean().reset_index().rename(columns={"price": "Preço Médio"})
+        st.dataframe(media_servico)
+
+    with col2:
+        st.markdown("### Por Estado")
+        media_estado = df.groupby("Estado")["price"].mean().reset_index().rename(columns={"price": "Preço Médio"})
+        st.dataframe(media_estado)
+
+    with col3:
+        st.markdown("### Por Cidade")
+        media_cidade = df.groupby("Cidade")["price"].mean().reset_index().rename(columns={"price": "Preço Médio"})
+        st.dataframe(media_cidade)
+
+else:
+    st.info("Aguardando o envio do arquivo CSV.")
