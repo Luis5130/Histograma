@@ -9,7 +9,7 @@ st.title("Visualização dos Meus Dados")
 # Carregar o CSV
 @st.cache_data
 def carregar_dados():
-    return pd.read_csv("meus_dados.csv")
+    return pd.read_csv("Preços Herois.csv")
 
 df = carregar_dados()
 
