@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 # Carregamento do CSV
 @st.cache_data
 def carregar_dados():
-    return pd.read_csv("Preços Herois.csv")  # Certifique-se que está no mesmo diretório
+    return pd.read_csv("Preços Herois.csv")  # Certifique-se de que está no mesmo diretório
 
 df = carregar_dados()
 
@@ -32,12 +31,22 @@ df_filtrado = df[
     (df["Cidade"].isin(cidades))
 ]
 
-# --- Histograma Final ---
+# --- Histograma Interativo ---
 st.subheader("Distribuição de Preços (com filtros aplicados)")
-fig, ax = plt.subplots()
-sns.histplot(data=df_filtrado, x="price", hue="servico", multiple="stack", bins=20, ax=ax)
-st.pyplot(fig)
+
+fig = px.histogram(
+    df_filtrado,
+    x="price",
+    color="servico",
+    nbins=20,
+    barmode="stack",
+    title="Distribuição de Preços por Serviço",
+    labels={"price": "Preço"}
+)
+
+fig.update_layout(hovermode="x unified")
+
+st.plotly_chart(fig, use_container_width=True)
 
 # Exibir dados filtrados (opcional)
-with st.expander("🔍 Ver dados filtrados"):
-    st.dataframe(df_filtrado.reset_index(drop=True))
+with st.expander
