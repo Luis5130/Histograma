@@ -1,25 +1,43 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-# Carrega dados do CSV no repo (coloque o CSV no mesmo repo ou defina o path certo)
-df = pd.read_csv("Preços Herois.csv")
+# Carregamento do CSV
+@st.cache_data
+def carregar_dados():
+    return pd.read_csv("meus_dados.csv")  # Certifique-se que está no mesmo diretório
 
-st.title("Histograma Interativo de Preços por Serviço")
+df = carregar_dados()
 
-# Filtro por Cidade
-cidade_selecionada = st.selectbox("Selecione a Cidade", options=["Todas"] + df['Cidade'].unique().tolist())
+st.title("📊 Histograma Interativo de Preços")
 
-if cidade_selecionada != "Todas":
-    df = df[df['Cidade'] == cidade_selecionada]
+# --- Filtros ---
+st.sidebar.header("Filtros")
 
-# Histograma por Serviço (preços)
-fig = px.histogram(df, x='servico', y='price', color='servico',
-                   histfunc='avg',  # média
-                   labels={'servico': 'Serviço', 'price': 'Preço Médio'},
-                   title='Preço médio por serviço',
-                   hover_data={'price': ':.2f'})
+# Serviço
+servicos = st.sidebar.multiselect("Serviço", options=sorted(df["servico"].unique()), default=df["servico"].unique())
 
-fig.update_layout(bargap=0.2)
+# Estado
+estados = st.sidebar.multiselect("Estado", options=sorted(df["Estado"].unique()), default=df["Estado"].unique())
 
-st.plotly_chart(fig, use_container_width=True)
+# Cidade (baseada nos estados selecionados)
+cidades_disponiveis = df[df["Estado"].isin(estados)]["Cidade"].unique()
+cidades = st.sidebar.multiselect("Cidade", options=sorted(cidades_disponiveis), default=sorted(cidades_disponiveis))
+
+# Aplicar os filtros
+df_filtrado = df[
+    (df["servico"].isin(servicos)) &
+    (df["Estado"].isin(estados)) &
+    (df["Cidade"].isin(cidades))
+]
+
+# --- Histograma Final ---
+st.subheader("Distribuição de Preços (com filtros aplicados)")
+fig, ax = plt.subplots()
+sns.histplot(data=df_filtrado, x="price", hue="servico", multiple="stack", bins=20, ax=ax)
+st.pyplot(fig)
+
+# Exibir dados filtrados (opcional)
+with st.expander("🔍 Ver dados filtrados"):
+    st.dataframe(df_filtrado.reset_index(drop=True))
