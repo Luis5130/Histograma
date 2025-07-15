@@ -1,148 +1,223 @@
 import streamlit as st
+
 import pandas as pd
+
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots # Para múltiplos gráficos em uma figura
 
-# --- Carregar dados do arquivo CSV ---
+import numpy as np
+
+
+
+# --- Carregar dados ---
+
 @st.cache_data
+
 def carregar_dados():
-    csv_file_path = "dados_semanais.csv" # Certifique-se de que este arquivo existe na mesma pasta
 
-    try:
-        df = pd.read_csv(csv_file_path)
-    except FileNotFoundError:
-        st.error(f"Erro: O arquivo '{csv_file_path}' não foi encontrado. Por favor, certifique-se de que ele está na mesma pasta do script.")
-        st.stop()
+    return pd.read_csv("Preços Herois.csv")
 
-    df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", dayfirst=True)
-    df = df.set_index("Data")
-    df = df.sort_index()
 
-    return df
 
 df = carregar_dados()
 
-st.title("📊 Análise de Performance ao Longo do Tempo e Comparativo de Períodos")
 
-# --- VISUALIZAÇÃO DE TENDÊNCIA AO LONGO DO TEMPO (SIMILAR À FOTO 1) ---
-st.header("Tendência das Métricas ao Longo do Tempo")
 
-# Obter todas as colunas numéricas (métricas)
-metricas_para_grafico_linha = df.columns.tolist()
+st.title("📊 Histograma Interativo de Preços")
 
-if not metricas_para_grafico_linha:
-    st.warning("Nenhuma métrica numérica encontrada para exibir no gráfico de tendência.")
+
+
+# --- Filtros ---
+
+st.sidebar.header("Filtros")
+
+
+
+# Serviço
+
+todos_servicos = sorted(df["servico"].unique())
+
+selecionar_todos_servicos = st.sidebar.checkbox("Selecionar todos os serviços", value=True)
+
+if selecionar_todos_servicos:
+
+    servicos = st.sidebar.multiselect("Serviço", todos_servicos, default=todos_servicos)
+
 else:
-    fig_linha = go.Figure()
 
-    for col in metricas_para_grafico_linha:
-        fig_linha.add_trace(go.Scatter(x=df.index, y=df[col], mode='lines+markers', name=col))
-
-    fig_linha.update_layout(
-        title="Evolução das Métricas Semanais",
-        xaxis_title="Data",
-        yaxis_title="Contagem",
-        hovermode="x unified" # Exibe hover para todas as linhas na mesma data
-    )
-    st.plotly_chart(fig_linha, use_container_width=True)
+    servicos = st.sidebar.multiselect("Serviço", todos_servicos)
 
 
-# --- SELEÇÃO DE PERÍODOS PARA COMPARATIVO ---
-st.sidebar.header("Seleção de Períodos para Comparativo")
 
-min_date = df.index.min().date()
-max_date = df.index.max().date()
+# Estado
 
-st.sidebar.subheader("Período 1")
-data_inicio_p1 = st.sidebar.date_input("Data de Início P1", value=min_date, min_value=min_date, max_value=max_date, key="p1_start")
-data_fim_p1 = st.sidebar.date_input("Data de Fim P1", value=max_date, min_value=min_date, max_value=max_date, key="p1_end")
+todos_estados = sorted(df["Estado"].unique())
 
-st.sidebar.subheader("Período 2")
-data_inicio_p2 = st.sidebar.date_input("Data de Início P2", value=min_date, min_value=min_date, max_value=max_date, key="p2_start")
-data_fim_p2 = st.sidebar.date_input("Data de Fim P2", value=max_date, min_value=min_date, max_value=max_date, key="p2_end")
+selecionar_todos_estados = st.sidebar.checkbox("Selecionar todos os estados", value=True)
 
+if selecionar_todos_estados:
 
-# --- Garantir que as datas de fim sejam maiores ou iguais às datas de início ---
-if data_inicio_p1 > data_fim_p1:
-    st.sidebar.error("Erro: A data de início do Período 1 não pode ser posterior à data de fim.")
-    st.stop()
+    estados = st.sidebar.multiselect("Estado", todos_estados, default=todos_estados)
 
-if data_inicio_p2 > data_fim_p2:
-    st.sidebar.error("Erro: A data de início do Período 2 não pode ser posterior à data de fim.")
-    st.stop()
-
-
-# --- Filtrar dados por período ---
-df_p1 = df.loc[pd.to_datetime(data_inicio_p1):pd.to_datetime(data_fim_p1)]
-df_p2 = df.loc[pd.to_datetime(data_inicio_p2):pd.to_datetime(data_fim_p2)]
-
-if df_p1.empty or df_p2.empty:
-    st.warning("Um ou ambos os períodos selecionados não contêm dados. Por favor, ajuste as datas.")
 else:
-    # --- Calcular totais para cada período ---
-    colunas_numericas = df.columns # As métricas são todas as colunas exceto o índice 'Data'
-    
-    totais_p1 = df_p1[colunas_numericas].sum()
-    totais_p2 = df_p2[colunas_numericas].sum()
 
-    # --- Calcular a diferença percentual ---
-    diferenca_percentual = pd.Series(index=colunas_numericas, dtype=float)
-    
-    for col in colunas_numericas:
-        val_p1 = totais_p1.get(col, 0)
-        val_p2 = totais_p2.get(col, 0)
-        
-        if val_p1 == 0:
-            if val_p2 > 0:
-                diferenca_percentual[col] = float('inf') # Aumento infinito
-            else:
-                diferenca_percentual[col] = 0 # Ambos zero, diferença zero
-        else:
-            diferenca_percentual[col] = ((val_p2 - val_p1) / val_p1) * 100
-
-    # --- Criar DataFrame para exibição ---
-    st.header("Comparativo de Períodos Selecionados")
-    df_comparativo = pd.DataFrame({
-        "Métrica": colunas_numericas,
-        f"Total Período 1 ({data_inicio_p1.strftime('%d/%m/%Y')} a {data_fim_p1.strftime('%d/%m/%Y')})": totais_p1.values,
-        f"Total Período 2 ({data_inicio_p2.strftime('%d/%m/%Y')} a {data_fim_p2.strftime('%d/%m/%Y')})": totais_p2.values,
-        "Diferença Percentual (%)": diferenca_percentual.values
-    })
-
-    st.dataframe(df_comparativo.style.format({
-        f"Total Período 1 ({data_inicio_p1.strftime('%d/%m/%Y')} a {data_fim_p1.strftime('%d/%m/%Y')})": "{:,.0f}",
-        f"Total Período 2 ({data_inicio_p2.strftime('%d/%m/%Y')} a {data_fim_p2.strftime('%d/%m/%Y')})": "{:,.0f}",
-        "Diferença Percentual (%)": "{:,.2f}%"
-    }))
+    estados = st.sidebar.multiselect("Estado", todos_estados)
 
 
-    # --- Gráfico de Barras da Diferença Percentual (Similar à Foto 2) ---
-    st.subheader("Gráfico de Diferença Percentual entre Período 1 e Período 2")
 
-    fig_bar = go.Figure()
+# Cidade
 
-    fig_bar.add_trace(go.Bar(
-        x=df_comparativo["Métrica"],
-        y=df_comparativo["Diferença Percentual (%)"],
-        name="Diferença Percentual",
-        marker_color=['green' if x >= 0 else 'red' for x in df_comparativo["Diferença Percentual (%)"]],
-        hovertemplate="<br>".join([
-            "Métrica: %{x}",
-            "Diferença: %{y:.2f}%",
-        ])
-    ))
+cidades_disponiveis = sorted(df[df["Estado"].isin(estados)]["Cidade"].unique())
 
-    fig_bar.update_layout(
-        title="Diferença Percentual por Métrica",
-        xaxis_title="Métrica",
-        yaxis_title="Diferença Percentual (%)",
-        yaxis_tickformat=".0f",
-        showlegend=False
-    )
+selecionar_todas_cidades = st.sidebar.checkbox("Selecionar todas as cidades", value=True)
 
-    st.plotly_chart(fig_bar, use_container_width=True)
+if selecionar_todas_cidades:
 
-    with st.expander("🔍 Ver dados brutos do Período 1"):
-        st.dataframe(df_p1.reset_index())
-    with st.expander("🔍 Ver dados brutos do Período 2"):
-        st.dataframe(df_p2.reset_index())
+    cidades = st.sidebar.multiselect("Cidade", cidades_disponiveis, default=cidades_disponiveis)
+
+else:
+
+    cidades = st.sidebar.multiselect("Cidade", cidades_disponiveis)
+
+
+
+# --- Filtrar dados ---
+
+df_filtrado = df[
+
+    (df["servico"].isin(servicos)) &
+
+    (df["Estado"].isin(estados)) &
+
+    (df["Cidade"].isin(cidades))
+
+]
+
+
+
+# --- Plot ---
+
+st.subheader("Distribuição de Preços (com filtros aplicados)")
+
+
+
+if df_filtrado.empty:
+
+    st.warning("Nenhum dado encontrado com os filtros selecionados.")
+
+else:
+
+    bin_size = 20
+
+    max_price = df_filtrado["price"].max()
+
+    bins = np.arange(0, max_price + bin_size, bin_size)
+
+
+
+    # Calcular histograma
+
+    hist_data = []
+
+    for serv in df_filtrado["servico"].unique():
+
+        df_serv = df_filtrado[df_filtrado["servico"] == serv]
+
+        counts, _ = np.histogram(df_serv["price"], bins=bins)
+
+        percent = (counts / counts.sum()) * 100
+
+        labels = [f"R${bins[i]:.0f} - R${bins[i+1]-1:.0f}" for i in range(len(counts))]
+
+
+
+        hist_data.append(go.Bar(
+
+            x=labels,
+
+            y=counts,
+
+            name=serv,
+
+            hovertemplate="<br>".join([
+
+                "Serviço: " + serv,
+
+                "Faixa de preço: %{x}",
+
+                "Quantidade: %{y}",
+
+                "Percentual: %{customdata:.1f}%",
+
+            ]),
+
+            customdata=percent
+
+        ))
+
+
+
+    # Média
+
+    media = df_filtrado["price"].mean()
+
+
+
+    layout = go.Layout(
+
+        title="Distribuição de Preços por Serviço",
+
+        xaxis_title="Faixa de Preço (R$)",
+
+        yaxis_title="Quantidade",
+
+        barmode="stack",
+
+        bargap=0.05,
+
+        shapes=[
+
+            dict(
+
+                type="line",
+
+                x0=f"R${int(media // bin_size) * bin_size} - R${int(media // bin_size) * bin_size + bin_size - 1}",
+
+                x1=f"R${int(media // bin_size) * bin_size} - R${int(media // bin_size) * bin_size + bin_size - 1}",
+
+                y0=0,
+
+                y1=max(counts),
+
+                line=dict(color="black", dash="dash"),
+
+            )
+
+        ],
+
+        annotations=[
+
+            dict(
+
+                x=f"R${int(media // bin_size) * bin_size} - R${int(media // bin_size) * bin_size + bin_size - 1}",
+
+                y=max(counts),
+
+                text=f"Média: R${media:.2f}",
+
+                showarrow=True,
+
+                arrowhead=1
+
+            )
+
+        ]
+
+    )
+
+
+
+    fig = go.Figure(data=hist_data, layout=layout)
+
+
+
+    st.plotly_chart(fig, use_container_width=True)
